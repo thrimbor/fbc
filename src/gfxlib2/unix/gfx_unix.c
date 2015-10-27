@@ -1,5 +1,6 @@
 #include "../fb_gfx.h"
 #include "fb_gfx_x11.h"
+#include "fb_gfx_sdl2.h"
 
 #ifdef HOST_LINUX
 #include "../linux/fb_gfx_linux.h"
@@ -8,7 +9,9 @@
 #if defined HOST_FREEBSD || defined HOST_OPENBSD || defined HOST_LINUX || defined HOST_DARWIN
 
 const GFXDRIVER *__fb_gfx_drivers_list[] = {
-
+#ifndef DISABLE_SDL2
+	&fb_gfxDriverSDL2,
+#endif
 #ifndef DISABLE_X11
 	&fb_gfxDriverX11,
 #ifndef DISABLE_OPENGL
