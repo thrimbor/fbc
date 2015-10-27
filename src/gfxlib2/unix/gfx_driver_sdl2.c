@@ -36,6 +36,8 @@ static int driver_init(char *title, int w, int h, int depth, int refresh_rate, i
 		return -1;
 	}
 	
+	SDL_SetWindowTitle(__sdl2_ctx.screen, title);
+	
 	__sdl2_ctx.ren = SDL_CreateRenderer(__sdl2_ctx.screen, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
 	if (__sdl2_ctx.ren == NULL)
 	{
@@ -108,6 +110,11 @@ static void driver_set_mouse(int x, int y, int cursor, int clip)
 	
 }
 
+static void driver_set_window_title(char *title)
+{
+	SDL_SetWindowTitle(__sdl2_ctx.screen, title);
+}
+
 static int *driver_fetch_modes(int depth, int *size)
 {
 	
@@ -130,7 +137,7 @@ GFXDRIVER fb_gfxDriverSDL2 =
 	driver_wait_vsync,	/* void (*wait_vsync)(void); */
 	driver_get_mouse,	/* int (*get_mouse)(int *x, int *y, int *z, int *buttons, int *clip); */
 	driver_set_mouse,	/* void (*set_mouse)(int x, int y, int cursor, int clip); */
-	NULL,	/* void (*set_window_title)(char *title); */
+	driver_set_window_title,	/* void (*set_window_title)(char *title); */
 	NULL,	/* int (*set_window_pos)(int x, int y); */
 	driver_fetch_modes,	/* int *(*fetch_modes)(void); */
 	NULL,			/* void (*flip)(void); */
