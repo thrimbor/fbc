@@ -25,9 +25,17 @@ static int driver_init(char *title, int w, int h, int depth, int refresh_rate, i
 		{
 			return -1;
 		}
+		__sdl2_ctx.initialized = TRUE;
 	}
 	
-	// FIXME: We should clean up old state here
+	/* clean up old state */
+	if (__sdl2_ctx.screen != NULL)
+	{
+		SDL_DestroyRenderer(__sdl2_ctx.ren);
+		SDL_DestroyWindow(__sdl2_ctx.screen);
+		SDL_DestroyTexture(__sdl2_ctx.canvas);
+		__sdl2_ctx.screen = NULL;
+	}
 	
 	__sdl2_ctx.screen = SDL_CreateWindow(title, 100, 100, w, h, SDL_WINDOW_SHOWN);
 	if (__sdl2_ctx.screen == NULL)
@@ -42,6 +50,7 @@ static int driver_init(char *title, int w, int h, int depth, int refresh_rate, i
 	if (__sdl2_ctx.ren == NULL)
 	{
 		SDL_DestroyWindow(__sdl2_ctx.screen);
+		__sdl2_ctx.screen = NULL;
 		SDL_Quit();
 		return -1;
 	}
@@ -51,6 +60,7 @@ static int driver_init(char *title, int w, int h, int depth, int refresh_rate, i
 	{
 		SDL_DestroyRenderer(__sdl2_ctx.ren);
 		SDL_DestroyWindow(__sdl2_ctx.screen);
+		__sdl2_ctx.screen = NULL;
 		SDL_Quit();
 		return -1;
 	}
@@ -58,7 +68,6 @@ static int driver_init(char *title, int w, int h, int depth, int refresh_rate, i
 	SDL_RenderClear(__sdl2_ctx.ren);
 	SDL_RenderPresent(__sdl2_ctx.ren);
 	
-	__sdl2_ctx.initialized = TRUE;
 	return 0;
 };
 
