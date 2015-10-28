@@ -8,10 +8,57 @@ typedef struct SDL2_GFXDRIVER_CTX_
 	SDL_Window *screen;
 	SDL_Renderer *ren;
 	SDL_Texture *canvas;
+	SDL_Thread *thread;
+	int w;
+	int h;
 	int initialized;
 } SDL2_GFXDRIVER_CTX;
 
-static SDL2_GFXDRIVER_CTX __sdl2_ctx = {NULL, NULL, NULL, FALSE};
+static SDL2_GFXDRIVER_CTX __sdl2_ctx = {NULL, NULL, NULL, NULL, 0, 0, FALSE};
+
+int driver_thread()
+{
+	__sdl2_ctx.screen = SDL_CreateWindow("TITLE", 100, 100, __sdl2_ctx.w, __sdl2_ctx.h, SDL_WINDOW_SHOWN);
+	if (__sdl2_ctx.screen == NULL)
+	{
+		SDL_Quit();
+		return -1;
+	}
+	
+	__sdl2_ctx.ren = SDL_CreateRenderer(__sdl2_ctx.screen, -1, SDL_RENDERER_ACCELERATED);// | SDL_RENDERER_PRESENTVSYNC);
+	if (__sdl2_ctx.ren == NULL)
+	{
+		SDL_DestroyWindow(__sdl2_ctx.screen);
+		__sdl2_ctx.screen = NULL;
+		SDL_Quit();
+		return -1;
+	}
+	
+	__sdl2_ctx.canvas = SDL_CreateTexture(__sdl2_ctx.ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, __sdl2_ctx.w, __sdl2_ctx.h);
+	if (__sdl2_ctx.canvas == NULL)
+	{
+		SDL_DestroyRenderer(__sdl2_ctx.ren);
+		SDL_DestroyWindow(__sdl2_ctx.screen);
+		__sdl2_ctx.screen = NULL;
+		SDL_Quit();
+		return -1;
+	}
+	
+	SDL_RenderClear(__sdl2_ctx.ren);
+	SDL_RenderPresent(__sdl2_ctx.ren);
+	
+	for (;;)
+	{
+		int err = 0;
+		SDL_UpdateTexture(__sdl2_ctx.canvas, NULL, __fb_gfx->framebuffer, 0);
+		
+		err = SDL_RenderCopy(__sdl2_ctx.ren, __sdl2_ctx.canvas, NULL, NULL);
+		if (err != 0)
+			printf("SDL_RenderCopy failed!\n");
+		
+		SDL_RenderPresent(__sdl2_ctx.ren);
+	};
+}
 
 static int driver_init(char *title, int w, int h, int depth, int refresh_rate, int flags)
 {
@@ -28,7 +75,13 @@ static int driver_init(char *title, int w, int h, int depth, int refresh_rate, i
 		__sdl2_ctx.initialized = TRUE;
 	}
 	
-	/* clean up old state */
+	__sdl2_ctx.w = w;
+	__sdl2_ctx.h = h;
+	
+	__sdl2_ctx.thread = SDL_CreateThread(driver_thread, "FB.gfx.sdl2.thread", NULL);
+	
+	///* clean up old state */
+	/*
 	if (__sdl2_ctx.screen != NULL)
 	{
 		SDL_DestroyRenderer(__sdl2_ctx.ren);
@@ -67,7 +120,7 @@ static int driver_init(char *title, int w, int h, int depth, int refresh_rate, i
 	
 	SDL_RenderClear(__sdl2_ctx.ren);
 	SDL_RenderPresent(__sdl2_ctx.ren);
-	
+	*/
 	return 0;
 };
 
