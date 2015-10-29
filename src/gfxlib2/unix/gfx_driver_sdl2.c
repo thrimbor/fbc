@@ -9,16 +9,14 @@ typedef struct SDL2_GFXDRIVER_CTX_
 	SDL_Renderer *ren;
 	SDL_Texture *canvas;
 	SDL_Thread *thread;
-	int w;
-	int h;
 	int initialized;
 } SDL2_GFXDRIVER_CTX;
 
-static SDL2_GFXDRIVER_CTX __sdl2_ctx = {NULL, NULL, NULL, NULL, 0, 0, FALSE};
+static SDL2_GFXDRIVER_CTX __sdl2_ctx = {NULL, NULL, NULL, NULL, FALSE};
 
 int driver_thread()
 {
-	__sdl2_ctx.screen = SDL_CreateWindow("TITLE", 100, 100, __sdl2_ctx.w, __sdl2_ctx.h, SDL_WINDOW_SHOWN);
+	__sdl2_ctx.screen = SDL_CreateWindow("TITLE", 100, 100, __fb_gfx->w, __fb_gfx->h, SDL_WINDOW_SHOWN);
 	if (__sdl2_ctx.screen == NULL)
 	{
 		SDL_Quit();
@@ -34,7 +32,7 @@ int driver_thread()
 		return -1;
 	}
 	
-	__sdl2_ctx.canvas = SDL_CreateTexture(__sdl2_ctx.ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, __sdl2_ctx.w, __sdl2_ctx.h);
+	__sdl2_ctx.canvas = SDL_CreateTexture(__sdl2_ctx.ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, __fb_gfx->w, __fb_gfx->h);
 	if (__sdl2_ctx.canvas == NULL)
 	{
 		SDL_DestroyRenderer(__sdl2_ctx.ren);
@@ -79,9 +77,6 @@ static int driver_init(char *title, int w, int h, int depth, int refresh_rate, i
 		}
 		__sdl2_ctx.initialized = TRUE;
 	}
-	
-	__sdl2_ctx.w = w;
-	__sdl2_ctx.h = h;
 	
 	__sdl2_ctx.thread = SDL_CreateThread(driver_thread, "FB.gfx.sdl2.thread", NULL);
 	
