@@ -9,10 +9,11 @@ typedef struct SDL2_GFXDRIVER_CTX_
 	SDL_Renderer *ren;
 	SDL_Texture *canvas;
 	SDL_Thread *thread;
+	SDL_mutex *mutex;
 	int initialized;
 } SDL2_GFXDRIVER_CTX;
 
-static SDL2_GFXDRIVER_CTX __sdl2_ctx = {NULL, NULL, NULL, NULL, FALSE};
+static SDL2_GFXDRIVER_CTX __sdl2_ctx = {NULL, NULL, NULL, NULL, NULL, FALSE};
 
 int driver_thread()
 {
@@ -42,6 +43,16 @@ int driver_thread()
 		return -1;
 	}
 	
+	__sdl2_ctx.mutex = SDL_CreateMutex();
+	if (__sdl2_ctx.mutex == NULL)
+	{
+		SDL_DestroyTexture(__sdl2_ctx.canvas);
+		SDL_DestroyRenderer(__sdl2_ctx.ren);
+		SDL_DestroyWindow(__sdl2_ctx.screen);
+		__sdl2_ctx.screen = NULL;
+		SDL_Quit();
+	}
+	
 	SDL_RenderClear(__sdl2_ctx.ren);
 	SDL_RenderPresent(__sdl2_ctx.ren);
 	
@@ -52,8 +63,10 @@ int driver_thread()
 	
 	for (;;)
 	{
+		SDL_LockMutex(__sdl2_ctx.mutex);
 		int err = 0;
 		SDL_UpdateTexture(__sdl2_ctx.canvas, NULL, __fb_gfx->framebuffer, __fb_gfx->pitch);
+		SDL_UnlockMutex(__sdl2_ctx.mutex);
 		
 		err = SDL_RenderCopy(__sdl2_ctx.ren, __sdl2_ctx.canvas, NULL, NULL);
 		if (err != 0)
@@ -133,6 +146,7 @@ static void driver_exit(void)
 			SDL_DestroyRenderer(__sdl2_ctx.ren);
 			SDL_DestroyWindow(__sdl2_ctx.screen);
 			SDL_DestroyTexture(__sdl2_ctx.canvas);
+			SDL_DestroyMutex(__sdl2_ctx.mutex);
 			__sdl2_ctx.screen = NULL;
 		}
 		
@@ -144,12 +158,12 @@ static void driver_exit(void)
 
 static void driver_lock(void)
 {
-	
+	SDL_LockMutex(__sdl2_ctx.mutex);
 }
 
 static void driver_unlock(void)
 {
-	
+	SDL_UnlockMutex(__sdl2_ctx.mutex);
 }
 
 static void driver_set_palette(int index, int r, int g, int b)
