@@ -47,10 +47,15 @@ int driver_thread()
 	SDL_RenderClear(__sdl2_ctx.ren);
 	SDL_RenderPresent(__sdl2_ctx.ren);
 	
+	if (__fb_gfx->bpp != 4)
+	{
+		printf("!FIXME! bpp value of %d not supported.\n", __fb_gfx->bpp);
+	}
+	
 	for (;;)
 	{
 		int err = 0;
-		SDL_UpdateTexture(__sdl2_ctx.canvas, NULL, __fb_gfx->framebuffer, 0);
+		SDL_UpdateTexture(__sdl2_ctx.canvas, NULL, __fb_gfx->framebuffer, __fb_gfx->pitch);
 		
 		err = SDL_RenderCopy(__sdl2_ctx.ren, __sdl2_ctx.canvas, NULL, NULL);
 		if (err != 0)
