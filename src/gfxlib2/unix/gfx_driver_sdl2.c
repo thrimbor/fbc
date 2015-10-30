@@ -237,6 +237,7 @@ static int driver_get_mouse(int *x, int *y, int *z, int *buttons, int *clip)
 {
 	// FIXME: what about z-coordinate?
 	// FIXME: what about clip?
+	// FIXME: shouldn't we return -1 when the mouse is outside of the window
 	
 	int t = SDL_GetMouseState(x,y);
 	
