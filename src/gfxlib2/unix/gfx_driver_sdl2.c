@@ -15,9 +15,10 @@ typedef struct SDL2_GFXDRIVER_CTX_
 
 static SDL2_GFXDRIVER_CTX __sdl2_ctx = {NULL, NULL, NULL, NULL, NULL, FALSE};
 
-static int mouse_buttons;
+static int mouse_buttons = 0;
+SDL_Color colors[256];
 
-int driver_thread()
+int driver_int_setup()
 {
 	__sdl2_ctx.screen = SDL_CreateWindow("TITLE", 100, 100, __fb_gfx->w, __fb_gfx->h, SDL_WINDOW_SHOWN);
 	if (__sdl2_ctx.screen == NULL)
@@ -54,13 +55,19 @@ int driver_thread()
 		__sdl2_ctx.screen = NULL;
 		SDL_Quit();
 	}
+}
+
+int driver_thread()
+{
+	/* Setup has to be done in this thread, otherwise the renderer won't work */
+	driver_int_setup();
 	
 	SDL_RenderClear(__sdl2_ctx.ren);
 	SDL_RenderPresent(__sdl2_ctx.ren);
 	
 	if (__fb_gfx->bpp != 4)
 	{
-		printf("!FIXME! bpp value of %d not supported.\n", __fb_gfx->bpp);
+		printf("!WARNING! bpp=%d is _very_ slow (and a mess) currently.\n", __fb_gfx->bpp);
 	}
 	
 	for (;;)
@@ -122,14 +129,29 @@ int driver_thread()
 		}
 		
 		
-		SDL_LockMutex(__sdl2_ctx.mutex);
 		int err = 0;
-		SDL_UpdateTexture(__sdl2_ctx.canvas, NULL, __fb_gfx->framebuffer, __fb_gfx->pitch);
-		SDL_UnlockMutex(__sdl2_ctx.mutex);
 		
-		err = SDL_RenderCopy(__sdl2_ctx.ren, __sdl2_ctx.canvas, NULL, NULL);
-		if (err != 0)
-			printf("SDL_RenderCopy failed!\n");
+		if (__fb_gfx->bpp == 4)
+		{
+			SDL_LockMutex(__sdl2_ctx.mutex);
+			SDL_UpdateTexture(__sdl2_ctx.canvas, NULL, __fb_gfx->framebuffer, __fb_gfx->pitch);
+			SDL_UnlockMutex(__sdl2_ctx.mutex);
+			err = SDL_RenderCopy(__sdl2_ctx.ren, __sdl2_ctx.canvas, NULL, NULL);
+			if (err != 0)
+				printf("SDL_RenderCopy failed!\n");
+		}
+		else
+		{
+			SDL_Surface *surface = SDL_CreateRGBSurfaceFrom(__fb_gfx->framebuffer, __fb_gfx->w, __fb_gfx->h, __fb_gfx->bpp*8, __fb_gfx->pitch, 0,0,0,0);
+			
+			SDL_SetPaletteColors(surface->format->palette, colors, 0, 255);
+			
+			
+			SDL_Texture *tex = SDL_CreateTextureFromSurface(__sdl2_ctx.ren, surface);
+			SDL_RenderCopy(__sdl2_ctx.ren, tex, NULL, NULL);
+			SDL_DestroyTexture(tex);
+			SDL_FreeSurface(surface);
+		}
 		
 		SDL_RenderPresent(__sdl2_ctx.ren);
 	};
@@ -151,48 +173,7 @@ static int driver_init(char *title, int w, int h, int depth, int refresh_rate, i
 	}
 	
 	__sdl2_ctx.thread = SDL_CreateThread(driver_thread, "FB.gfx.sdl2.thread", NULL);
-	
-	///* clean up old state */
-	/*
-	if (__sdl2_ctx.screen != NULL)
-	{
-		SDL_DestroyRenderer(__sdl2_ctx.ren);
-		SDL_DestroyWindow(__sdl2_ctx.screen);
-		SDL_DestroyTexture(__sdl2_ctx.canvas);
-		__sdl2_ctx.screen = NULL;
-	}
-	
-	__sdl2_ctx.screen = SDL_CreateWindow(title, 100, 100, w, h, SDL_WINDOW_SHOWN);
-	if (__sdl2_ctx.screen == NULL)
-	{
-		SDL_Quit();
-		return -1;
-	}
-	
-	SDL_SetWindowTitle(__sdl2_ctx.screen, title);
-	
-	__sdl2_ctx.ren = SDL_CreateRenderer(__sdl2_ctx.screen, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-	if (__sdl2_ctx.ren == NULL)
-	{
-		SDL_DestroyWindow(__sdl2_ctx.screen);
-		__sdl2_ctx.screen = NULL;
-		SDL_Quit();
-		return -1;
-	}
-	
-	__sdl2_ctx.canvas = SDL_CreateTexture(__sdl2_ctx.ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, w, h);
-	if (__sdl2_ctx.canvas == NULL)
-	{
-		SDL_DestroyRenderer(__sdl2_ctx.ren);
-		SDL_DestroyWindow(__sdl2_ctx.screen);
-		__sdl2_ctx.screen = NULL;
-		SDL_Quit();
-		return -1;
-	}
-	
-	SDL_RenderClear(__sdl2_ctx.ren);
-	SDL_RenderPresent(__sdl2_ctx.ren);
-	*/
+
 	return 0;
 };
 
@@ -225,7 +206,9 @@ static void driver_unlock(void)
 
 static void driver_set_palette(int index, int r, int g, int b)
 {
-	
+	colors[index].r = r;
+	colors[index].g = g;
+	colors[index].b = b;
 }
 
 static void driver_wait_vsync(void)
@@ -247,6 +230,7 @@ static int driver_get_mouse(int *x, int *y, int *z, int *buttons, int *clip)
 	if (t & SDL_BUTTON(SDL_BUTTON_MIDDLE)) *buttons |= BUTTON_MIDDLE;
 	return 0;
 }
+
 /* functionality not enabled because it doesn't work as expected
  * (for example it creates a mouse move event)
  */
