@@ -15,6 +15,8 @@ typedef struct SDL2_GFXDRIVER_CTX_
 
 static SDL2_GFXDRIVER_CTX __sdl2_ctx = {NULL, NULL, NULL, NULL, NULL, FALSE};
 
+static int mouse_buttons;
+
 int driver_thread()
 {
 	__sdl2_ctx.screen = SDL_CreateWindow("TITLE", 100, 100, __fb_gfx->w, __fb_gfx->h, SDL_WINDOW_SHOWN);
@@ -63,6 +65,63 @@ int driver_thread()
 	
 	for (;;)
 	{
+		SDL_Event event;
+		EVENT e;
+		
+		while (SDL_PollEvent(&event)) {
+			switch (event.type) {
+				case SDL_KEYDOWN:
+				{
+					printf("key pressed\n");
+					__fb_gfx->key[SC_RIGHT] = TRUE;
+					/*
+					e.scancode = event.key.keysym.sym;
+					e.ascii = 0;
+					e.scancode = SC_RIGHT;
+					fb_hPostKey(e.scancode);
+					e.type = EVENT_KEY_PRESS;
+					event.key.keysym.sym;
+					fb_hPostEvent(&e);*/
+					break;
+				}
+				
+				case SDL_KEYUP:
+				{
+					__fb_gfx->key[SC_RIGHT] = FALSE;
+					break;
+				}
+				
+				case SDL_MOUSEBUTTONDOWN:
+				{
+					switch (event.button.button)
+					{
+						case SDL_BUTTON_LEFT: mouse_buttons |= BUTTON_LEFT; e.button = BUTTON_LEFT; break;
+						case SDL_BUTTON_RIGHT: mouse_buttons |= BUTTON_RIGHT; e.button = BUTTON_RIGHT; break;
+						case SDL_BUTTON_MIDDLE: mouse_buttons |= BUTTON_MIDDLE; e.button = BUTTON_MIDDLE; break;
+					}
+					
+					e.type = EVENT_MOUSE_BUTTON_PRESS;
+					fb_hPostEvent(&e);
+					break;
+				}
+				
+				case SDL_MOUSEBUTTONUP:
+				{
+					switch (event.button.button)
+					{
+						case SDL_BUTTON_LEFT: mouse_buttons &= ~BUTTON_LEFT; e.button = BUTTON_LEFT; break;
+						case SDL_BUTTON_RIGHT: mouse_buttons &= ~BUTTON_RIGHT; e.button = BUTTON_RIGHT; break;
+						case SDL_BUTTON_MIDDLE: mouse_buttons &= ~BUTTON_MIDDLE; e.button = BUTTON_MIDDLE; break;
+					}
+					
+					e.type = EVENT_MOUSE_BUTTON_RELEASE;
+					fb_hPostEvent(&e);
+					break;
+				}
+			}
+		}
+		
+		
 		SDL_LockMutex(__sdl2_ctx.mutex);
 		int err = 0;
 		SDL_UpdateTexture(__sdl2_ctx.canvas, NULL, __fb_gfx->framebuffer, __fb_gfx->pitch);
@@ -152,8 +211,6 @@ static void driver_exit(void)
 		
 		SDL_Quit();
 	}
-	
-	return 0;
 }
 
 static void driver_lock(void)
@@ -178,13 +235,26 @@ static void driver_wait_vsync(void)
 
 static int driver_get_mouse(int *x, int *y, int *z, int *buttons, int *clip)
 {
+	// FIXME: what about z-coordinate?
+	// FIXME: what about clip?
 	
+	int t = SDL_GetMouseState(x,y);
+	
+	*buttons = 0;
+	if (t & SDL_BUTTON(SDL_BUTTON_LEFT)) *buttons |= BUTTON_LEFT;
+	if (t & SDL_BUTTON(SDL_BUTTON_RIGHT)) *buttons |= BUTTON_RIGHT;
+	if (t & SDL_BUTTON(SDL_BUTTON_MIDDLE)) *buttons |= BUTTON_MIDDLE;
+	return 0;
 }
-
+/* functionality not enabled because it doesn't work as expected
+ * (for example it creates a mouse move event)
+ */
+/*	 
 static void driver_set_mouse(int x, int y, int cursor, int clip)
 {
-	
+	SDL_WarpMouseInWindow(__sdl2_ctx.screen, x, y);
 }
+*/
 
 static void driver_set_window_title(char *title)
 {
@@ -193,7 +263,7 @@ static void driver_set_window_title(char *title)
 
 static int *driver_fetch_modes(int depth, int *size)
 {
-	
+	return 0;
 }
 
 static void driver_poll_events(void)
@@ -212,7 +282,7 @@ GFXDRIVER fb_gfxDriverSDL2 =
 	driver_set_palette,	/* void (*set_palette)(int index, int r, int g, int b); */
 	driver_wait_vsync,	/* void (*wait_vsync)(void); */
 	driver_get_mouse,	/* int (*get_mouse)(int *x, int *y, int *z, int *buttons, int *clip); */
-	driver_set_mouse,	/* void (*set_mouse)(int x, int y, int cursor, int clip); */
+	NULL,	/* void (*set_mouse)(int x, int y, int cursor, int clip); */
 	driver_set_window_title,	/* void (*set_window_title)(char *title); */
 	NULL,	/* int (*set_window_pos)(int x, int y); */
 	driver_fetch_modes,	/* int *(*fetch_modes)(void); */
