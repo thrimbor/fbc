@@ -11,9 +11,10 @@ typedef struct SDL2_GFXDRIVER_CTX_
 	SDL_Thread *thread;
 	SDL_mutex *mutex;
 	int initialized;
+	int is_running;
 } SDL2_GFXDRIVER_CTX;
 
-static SDL2_GFXDRIVER_CTX __sdl2_ctx = {NULL, NULL, NULL, NULL, NULL, FALSE};
+static SDL2_GFXDRIVER_CTX __sdl2_ctx = {NULL, NULL, NULL, NULL, NULL, FALSE, FALSE};
 
 static int mouse_buttons = 0;
 SDL_Color colors[256];
@@ -55,6 +56,17 @@ int driver_int_setup()
 		__sdl2_ctx.screen = NULL;
 		SDL_Quit();
 	}
+	
+	return 0;
+}
+
+void driver_int_cleanup ()
+{
+	SDL_DestroyRenderer(__sdl2_ctx.ren);
+	SDL_DestroyWindow(__sdl2_ctx.screen);
+	SDL_DestroyTexture(__sdl2_ctx.canvas);
+	SDL_DestroyMutex(__sdl2_ctx.mutex);
+	__sdl2_ctx.screen = NULL;
 }
 
 int driver_thread()
@@ -70,7 +82,7 @@ int driver_thread()
 		printf("!WARNING! bpp=%d is _very_ slow (and a mess) currently.\n", __fb_gfx->bpp);
 	}
 	
-	for (;;)
+	while (__sdl2_ctx.is_running)
 	{
 		SDL_Event event;
 		EVENT e;
@@ -154,7 +166,10 @@ int driver_thread()
 		}
 		
 		SDL_RenderPresent(__sdl2_ctx.ren);
-	};
+	}
+	
+	driver_int_cleanup();
+	return 0;
 }
 
 static int driver_init(char *title, int w, int h, int depth, int refresh_rate, int flags)
@@ -172,6 +187,7 @@ static int driver_init(char *title, int w, int h, int depth, int refresh_rate, i
 		__sdl2_ctx.initialized = TRUE;
 	}
 	
+	__sdl2_ctx.is_running = TRUE;
 	__sdl2_ctx.thread = SDL_CreateThread(driver_thread, "FB.gfx.sdl2.thread", NULL);
 
 	return 0;
@@ -181,14 +197,8 @@ static void driver_exit(void)
 {
 	if (__sdl2_ctx.initialized)
 	{
-		if (__sdl2_ctx.screen != NULL)
-		{
-			SDL_DestroyRenderer(__sdl2_ctx.ren);
-			SDL_DestroyWindow(__sdl2_ctx.screen);
-			SDL_DestroyTexture(__sdl2_ctx.canvas);
-			SDL_DestroyMutex(__sdl2_ctx.mutex);
-			__sdl2_ctx.screen = NULL;
-		}
+		__sdl2_ctx.is_running = FALSE;
+		SDL_WaitThread(__sdl2_ctx.thread, NULL);
 		
 		SDL_Quit();
 	}
