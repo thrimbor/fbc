@@ -10,25 +10,28 @@ typedef struct SDL2_GFXDRIVER_CTX_
 	SDL_Texture *canvas;
 	SDL_Thread *thread;
 	SDL_mutex *mutex;
+	SDL_mutex *init_mutex;
+	SDL_cond *init_cond;
+	int init_done;
 	int initialized;
 	int is_running;
 } SDL2_GFXDRIVER_CTX;
 
-static SDL2_GFXDRIVER_CTX __sdl2_ctx = {NULL, NULL, NULL, NULL, NULL, FALSE, FALSE};
+static SDL2_GFXDRIVER_CTX __sdl2_ctx = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, FALSE, FALSE, FALSE};
 
 static int mouse_buttons = 0;
 SDL_Color colors[256];
 
 int driver_int_setup()
 {
-	__sdl2_ctx.screen = SDL_CreateWindow("TITLE", 100, 100, __fb_gfx->w, __fb_gfx->h, SDL_WINDOW_SHOWN);
+	__sdl2_ctx.screen = SDL_CreateWindow("gfxlib2 SDL2", 100, 100, __fb_gfx->w, __fb_gfx->h, SDL_WINDOW_SHOWN);
 	if (__sdl2_ctx.screen == NULL)
 	{
 		SDL_Quit();
 		return -1;
 	}
 	
-	__sdl2_ctx.ren = SDL_CreateRenderer(__sdl2_ctx.screen, -1, SDL_RENDERER_ACCELERATED);// | SDL_RENDERER_PRESENTVSYNC);
+	__sdl2_ctx.ren = SDL_CreateRenderer(__sdl2_ctx.screen, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
 	if (__sdl2_ctx.ren == NULL)
 	{
 		SDL_DestroyWindow(__sdl2_ctx.screen);
@@ -73,6 +76,12 @@ int driver_thread()
 {
 	/* Setup has to be done in this thread, otherwise the renderer won't work */
 	driver_int_setup();
+	
+	/* Signal the main thread that initialization is done */
+	SDL_LockMutex(__sdl2_ctx.init_mutex);
+	__sdl2_ctx.init_done = TRUE;
+	SDL_CondSignal(__sdl2_ctx.init_cond);
+	SDL_UnlockMutex(__sdl2_ctx.init_mutex);
 	
 	SDL_RenderClear(__sdl2_ctx.ren);
 	SDL_RenderPresent(__sdl2_ctx.ren);
@@ -187,8 +196,19 @@ static int driver_init(char *title, int w, int h, int depth, int refresh_rate, i
 		__sdl2_ctx.initialized = TRUE;
 	}
 	
+	__sdl2_ctx.init_mutex = SDL_CreateMutex();
+	__sdl2_ctx.init_cond = SDL_CreateCond();
+	
+	
 	__sdl2_ctx.is_running = TRUE;
 	__sdl2_ctx.thread = SDL_CreateThread(driver_thread, "FB.gfx.sdl2.thread", NULL);
+	
+	SDL_LockMutex(__sdl2_ctx.init_mutex);
+	while (!__sdl2_ctx.init_done)
+		SDL_CondWait(__sdl2_ctx.init_cond, __sdl2_ctx.init_mutex);
+	SDL_UnlockMutex(__sdl2_ctx.init_mutex);
+	
+	SDL_SetWindowTitle(__sdl2_ctx.screen, title);
 
 	return 0;
 };
@@ -199,6 +219,9 @@ static void driver_exit(void)
 	{
 		__sdl2_ctx.is_running = FALSE;
 		SDL_WaitThread(__sdl2_ctx.thread, NULL);
+		SDL_DestroyCond(__sdl2_ctx.init_cond);
+		SDL_DestroyMutex(__sdl2_ctx.init_mutex);
+		__sdl2_ctx.init_done = FALSE;
 		
 		SDL_Quit();
 	}
